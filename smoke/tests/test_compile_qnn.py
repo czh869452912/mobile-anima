@@ -25,3 +25,16 @@ def test_expected_qnn_outputs_names_context_and_profile_targets():
 
     assert outputs["context"] == Path("smoke/artifacts/qnn/toy/toy_ctx.onnx")
     assert outputs["profile"] == Path("smoke/artifacts/qnn/toy/toy_profile.csv")
+from smoke.compile.compile_qnn import parse_compile_args
+
+
+def test_parse_compile_args_reads_graph_name_and_output_dir():
+    args = parse_compile_args([
+        "--graph-name", "toy",
+        "--onnx-model", "smoke/artifacts/onnx/toy.onnx",
+        "--sdk-root", "/opt/qairt",
+        "--output-dir", "smoke/artifacts/qnn/toy",
+    ])
+
+    assert args.graph_name == "toy"
+    assert args.output_dir.endswith("smoke/artifacts/qnn/toy")

@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,3 +20,11 @@ def qnn_provider_options(spec: OrtQnnRunSpec) -> dict[str, str]:
         "ep.context_embed_mode": "0",
         "session.disable_cpu_ep_fallback": "1" if spec.disable_cpu_fallback else "0",
     }
+
+
+def parse_qnn_args(argv: list[str]):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--backend", required=True)
+    parser.add_argument("--profile", required=True)
+    return parser.parse_args(argv)

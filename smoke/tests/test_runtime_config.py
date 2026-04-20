@@ -16,3 +16,10 @@ def test_qnn_provider_options_enable_context_and_disable_cpu_fallback():
     assert options["backend_path"].endswith("libQnnHtp.so")
     assert options["ep.context_enable"] == "1"
     assert options["session.disable_cpu_ep_fallback"] == "1"
+from smoke.runtime.run_ort_cpu import parse_cpu_args
+
+
+def test_parse_cpu_args_reads_model_path():
+    args = parse_cpu_args(["--model", "smoke/artifacts/onnx/toy.onnx"])
+
+    assert args.model == "smoke/artifacts/onnx/toy.onnx"
