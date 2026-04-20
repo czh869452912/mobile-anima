@@ -1,0 +1,5 @@
+.venv/
+android/.gradle/
+android/app/build/
+python/src/anima_host/__pycache__/
+python/tests/__pycache__/
