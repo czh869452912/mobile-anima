@@ -22,3 +22,9 @@ def test_parse_mini_args_reads_model_and_backend_paths():
 
     assert args.model.endswith("mini_block.onnx")
     assert args.backend.endswith("libQnnCpu.so")
+from ort_qnn.runtime.run_toy_ort_qnn import provider_available
+
+
+def test_provider_available_checks_membership():
+    assert provider_available("QNNExecutionProvider", ["CPUExecutionProvider", "QNNExecutionProvider"])
+    assert not provider_available("QNNExecutionProvider", ["CPUExecutionProvider"])
