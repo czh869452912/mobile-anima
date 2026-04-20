@@ -8,3 +8,4 @@ smoke/export/__pycache__/
 smoke/models/__pycache__/
 smoke/runtime/__pycache__/
 smoke/tests/__pycache__/
+smoke/artifacts/
