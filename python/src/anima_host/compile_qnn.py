@@ -22,6 +22,12 @@ def build_qnn_context_command(
     ]
 
 
+def validate_qnn_command(command: list[str]) -> None:
+    joined = " ".join(command)
+    assert "qnn-context-binary-generator" in joined
+    assert "--profiling_level" in joined
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--onnx-model", type=Path, required=True)
@@ -29,16 +35,14 @@ def main() -> None:
     parser.add_argument("--sdk-root", type=Path, required=True)
     parser.add_argument("--profiling-level", default="detailed")
     args = parser.parse_args()
-    print(
-        " ".join(
-            build_qnn_context_command(
-                onnx_model=args.onnx_model,
-                output_dir=args.output_dir,
-                sdk_root=args.sdk_root,
-                profiling_level=args.profiling_level,
-            )
-        )
+    command = build_qnn_context_command(
+        onnx_model=args.onnx_model,
+        output_dir=args.output_dir,
+        sdk_root=args.sdk_root,
+        profiling_level=args.profiling_level,
     )
+    validate_qnn_command(command)
+    print(" ".join(command))
 
 
 if __name__ == "__main__":

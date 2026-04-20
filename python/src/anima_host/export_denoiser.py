@@ -22,6 +22,14 @@ def build_dummy_inputs(spec: ExportSpec):
     return latent, timestep, cond, uncond
 
 
+def validate_export_shapes(spec: ExportSpec) -> None:
+    latent, timestep, cond, uncond = build_dummy_inputs(spec)
+    assert tuple(latent.shape) in {(1, 4, 128, 128), (1, 4, 128, 96), (1, 4, 96, 128)}
+    assert tuple(timestep.shape) == (1,)
+    assert tuple(cond.shape) == (1, spec.max_tokens, 16)
+    assert tuple(uncond.shape) == (1, spec.max_tokens, 16)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bundle-dir", type=Path, required=True)
@@ -37,6 +45,7 @@ def main() -> None:
         height=args.height,
         max_tokens=args.max_tokens,
     )
+    validate_export_shapes(spec)
     latent, timestep, cond, uncond = build_dummy_inputs(spec)
     print(
         {
