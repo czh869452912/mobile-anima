@@ -3,3 +3,8 @@ android/.gradle/
 android/app/build/
 python/src/anima_host/__pycache__/
 python/tests/__pycache__/
+smoke/compile/__pycache__/
+smoke/export/__pycache__/
+smoke/models/__pycache__/
+smoke/runtime/__pycache__/
+smoke/tests/__pycache__/
