@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ort_qnn.package.package_manifest import PackageSpec, manifest_dict, required_runtime_files
+from ort_qnn.package.package_manifest import PackageSpec, manifest_dict, pybind_extension_filenames, required_runtime_files
 
 
 def test_required_runtime_files_include_qnn_provider_and_pybind_module():
@@ -32,3 +32,24 @@ def test_manifest_dict_records_versions_and_expected_env_vars():
     assert manifest["qairt_version"] == "2.41.0"
     assert "PYTHONPATH" in manifest["required_env"]
     assert "LD_LIBRARY_PATH" in manifest["required_env"]
+
+
+def test_manifest_dict_includes_package_identity():
+    spec = PackageSpec(
+        release_root=Path("ort_qnn/artifacts/ort/build/linux_qnn/Release"),
+        qairt_root=Path("/opt/qcom/aistack/qairt/2.41.0.251128"),
+        ort_version="1.23.2",
+        qairt_version="2.41.0",
+    )
+
+    manifest = manifest_dict(spec)
+
+    assert manifest["package_name"] == "onnxruntime-qnn-local"
+    assert manifest["package_version"] == "1.23.2"
+
+
+def test_pybind_extension_filenames_include_abi_specific_name_when_provided():
+    names = pybind_extension_filenames(".cpython-310-x86_64-linux-gnu.so")
+
+    assert "onnxruntime_pybind11_state.so" in names
+    assert "onnxruntime_pybind11_state.cpython-310-x86_64-linux-gnu.so" in names
