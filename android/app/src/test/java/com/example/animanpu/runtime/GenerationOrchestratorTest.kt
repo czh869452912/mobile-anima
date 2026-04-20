@@ -1,0 +1,35 @@
+package com.example.animanpu.runtime
+
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class GenerationOrchestratorTest {
+    @Test
+    fun delegatesToEngineAndReturnsResult() = runTest {
+        val expected = GenerationResult(
+            imagePath = "/tmp/output.png",
+            totalDurationMs = 1234,
+            denoiseDurationMs = 1100,
+            profilingPath = "/tmp/profile.csv",
+            qnnActive = true,
+        )
+        val engine = object : GenerationEngine {
+            override suspend fun generate(request: GenerationRequest): GenerationResult = expected
+        }
+        val orchestrator = GenerationOrchestrator(engine)
+
+        val result = orchestrator.generate(
+            GenerationRequest(
+                width = 1024,
+                height = 1024,
+                prompt = "cat astronaut",
+                negativePrompt = "blurry",
+                steps = 8,
+                cfg = 5.0f,
+            )
+        )
+
+        assertEquals(expected, result)
+    }
+}
