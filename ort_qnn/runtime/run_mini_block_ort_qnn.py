@@ -1,0 +1,9 @@
+import argparse
+
+
+def parse_mini_args(argv: list[str]):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--backend", required=True)
+    parser.add_argument("--profile", required=True)
+    return parser.parse_args(argv)
