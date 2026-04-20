@@ -18,3 +18,11 @@ def test_to_markdown_row_formats_pass_fail_statuses():
     row = to_markdown_row(result)
 
     assert "| toy | PASS | PASS | FAIL | FAIL | FAIL | ort_qnn_session |" in row
+from pathlib import Path
+
+
+def test_smoke_matrix_template_contains_all_validation_columns():
+    text = Path("smoke/docs/smoke-matrix.md").read_text()
+
+    assert "| Graph | CPU ORT | QNN Compile | ORT QNN Session | ORT QNN Execute | Profile | Failing Stage |" in text
+    assert "SDK version" in text
