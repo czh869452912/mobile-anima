@@ -11,3 +11,5 @@ smoke/tests/__pycache__/
 smoke/artifacts/
 ort_qnn/runtime/__pycache__/
 ort_qnn/tests/__pycache__/
+ort_qnn/build/__pycache__/
+ort_qnn/artifacts/

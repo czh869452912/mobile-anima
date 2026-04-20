@@ -9,7 +9,7 @@ The repo is intentionally split into small validation ladders so toolchain risk 
 - `android/`: Android proof-of-concept shell and local host-side checks are in place.
 - `python/`: shared Python-side utilities and tests for model/export support are in place.
 - `smoke/`: toy and mini-block graphs have already passed CPU `ONNX Runtime`, `qnn-onnx-converter`, `qnn-model-lib-generator`, `qnn-context-binary-generator`, and `qnn-net-run` on the host CPU backend.
-- `ort_qnn/`: desktop `ONNX Runtime + QNN EP` build/run helpers, tests, and validation matrix are in place; the next real execution step is building a Python-callable Linux ORT with `QNNExecutionProvider`.
+- `ort_qnn/`: a Linux source build of `ONNX Runtime 1.23.2` with `QNNExecutionProvider` is now importable from the build tree, and both `toy.onnx` and `mini_block.onnx` pass `provider -> session -> execute` with profiling output.
 
 ## Repository Layout
 
@@ -41,8 +41,9 @@ The repo is intentionally split into small validation ladders so toolchain risk 
 
 - QAIRT currently lives under `/opt/qcom/aistack/qairt/2.41.0.251128` on this machine.
 - The QAIRT Python tooling depends on Python 3.10; the local helper environment is under `/opt/qcom/qairt-py310`.
-- The remaining desktop ORT source-build path still needs a working `ninja` installation before the real Linux build starts.
+- `ninja` is installed and the desktop ORT/QNN source build lives under `ort_qnn/artifacts/ort/build/linux_qnn/Release`.
+- Direct `PYTHONPATH` import from that build tree already exposes `QNNExecutionProvider`.
 
 ## Next Milestone
 
-Build a Python-callable Linux `ONNX Runtime` with `QNNExecutionProvider`, confirm provider visibility, and run `toy.onnx` followed by `mini_block.onnx` through `session -> execute`.
+Use the now-validated desktop ORT/QNN path to decide the next model step: either package the build into a reusable wheel/install flow, or start the real `Anima` denoiser integration and operator-gap analysis.
