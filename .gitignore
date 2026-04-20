@@ -9,3 +9,5 @@ smoke/models/__pycache__/
 smoke/runtime/__pycache__/
 smoke/tests/__pycache__/
 smoke/artifacts/
+ort_qnn/runtime/__pycache__/
+ort_qnn/tests/__pycache__/
