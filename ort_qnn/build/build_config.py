@@ -18,6 +18,7 @@ def build_ort_command(spec: BuildSpec) -> list[str]:
         "Release",
         "--build_shared_lib",
         "--build_wheel",
+        "--allow_running_as_root",
         "--parallel",
         "--use_qnn",
         "--qnn_home",

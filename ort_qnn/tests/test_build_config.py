@@ -19,3 +19,4 @@ def test_build_ort_command_requests_qnn_and_python_wheel():
     assert "--qnn_home" in command
     assert str(spec.qairt_root) in command
     assert "--build_wheel" in command
+    assert "--allow_running_as_root" in command

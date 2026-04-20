@@ -11,6 +11,7 @@ cd "$ORT_SRC_ROOT"
   --config Release \
   --build_shared_lib \
   --build_wheel \
+  --allow_running_as_root \
   --parallel \
   --use_qnn \
   --qnn_home "$QAIRT_SDK_ROOT" \
