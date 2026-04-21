@@ -6,4 +6,6 @@ data class GenerationResult(
     val denoiseDurationMs: Long,
     val profilingPath: String,
     val qnnActive: Boolean,
+    val sessionCreated: Boolean = false,
+    val outputTensorPath: String = "",
 )
