@@ -1,79 +1,64 @@
 # Mobile Anima NPU
 
-Experimental workspace for bringing an `Anima` denoiser pipeline onto Qualcomm NPU-capable targets.
+面向 Qualcomm Snapdragon Android 设备的 `Anima` 本地推理实验项目。
 
-The repo is intentionally split into small validation ladders so toolchain risk is proven in the cheapest order before touching the real model.
+当前项目采用“分层验证、逐步收敛风险”的策略，优先证明最昂贵、最关键的 `denoiser` 路径能够通过 `QNN/HTP` 在 Android 上本地执行，再逐步推进真实 `Anima` 模型导出、真机证据闭环，以及更完整的 prompt-to-image 流程。
 
-## Current Status
+## 项目目标
 
-- `android/`: Android proof-of-concept shell and local host-side checks are in place.
-- `python/`: shared Python-side utilities and tests for model/export support are in place.
-- `smoke/`: toy and mini-block graphs have already passed CPU `ONNX Runtime`, `qnn-onnx-converter`, `qnn-model-lib-generator`, `qnn-context-binary-generator`, and `qnn-net-run` on the host CPU backend.
-- `ort_qnn/`: a Linux source build of `ONNX Runtime 1.23.2` with `QNNExecutionProvider` is now importable from the build tree, and both `toy.onnx` and `mini_block.onnx` pass `provider -> session -> execute` with profiling output.
-- `ort_qnn/package/`: packaging helpers now produce both a portable runtime bundle and a local wheel path for the validated desktop `ORT + QNN` build.
-- `scripts/bootstrap_ubuntu2404.sh`: prepares a stronger Ubuntu 24.04 host for desktop ORT/QNN work and Android base tooling, then optionally continues into QAIRT setup if `qpm-cli` is already installed and logged in.
+- **最终目标**：在 Android 的 Snapdragon 手机上，以 NPU/HTP 运行 `Anima` 图片生成关键路径
+- **当前主线**：验证 `denoiser-first` 的 Android 本地 `ORT + QNNExecutionProvider` 路径
+- **当前原则**：先证明最小可行路径，再扩大模型与系统边界
 
-## Repository Layout
+## 当前进展
 
-- `android/` — Android app shell for the eventual on-device integration path.
-- `python/` — Python package, helpers, and tests shared by local tooling.
-- `smoke/` — cheapest-order QNN smoke tests for `toy` and `mini_block` graphs.
-- `ort_qnn/` — desktop `ONNX Runtime + QNN Execution Provider` acquisition, runtime helpers, and validation docs.
-- `docs/superpowers/` — design specs and implementation plans captured during execution.
-- `scripts/` — one-off host/build helper scripts.
+- `smoke/`：最小图的导出、QNN 编译与 host 运行已验证
+- `ort_qnn/`：桌面 `ORT + QNNExecutionProvider` 的 provider / session / execute 已验证
+- `android/`：Android 端已具备 `ORT + QNN` session、metadata 驱动执行、严格输入绑定与单次 `denoiser` execute 路径
+- `python/`：已有参考 pipeline、导出辅助与 host 侧工具雏形
+- 真实 `Anima` 导出、operator gap 审查、真机 NPU 证据链仍是后续关键工作
 
-## Stronger Host Setup
+## 推荐阅读顺序
 
-For a new Ubuntu 24.04 machine, start with:
+如果你是第一次进入这个仓库，推荐按以下顺序阅读：
 
-```bash
-sudo bash scripts/bootstrap_ubuntu2404.sh
-```
+1. `docs/project/index.md` — 项目文档入口与阅读地图
+2. `docs/project/overview.md` — 项目背景、目标与当前策略
+3. `docs/project/requirements.md` — 当前范围、非目标与阶段边界
+4. `docs/project/architecture.md` — 系统架构与模块职责
+5. `docs/project/roadmap.md` — 里程碑路线图
+6. `docs/project/status.md` — 按模块跟踪当前状态、证据与下一步
+7. `docs/project/validation.md` — 验证梯度与每一层证明内容
 
-The script intentionally works in two phases:
+## 模块文档
 
-- if `qpm-cli` is not installed yet, it completes public prerequisites, explains the missing Qualcomm step, and exits cleanly
-- after you install/login `qpm-cli`, rerun the same script and it continues into `QAIRT` setup
+- `smoke/README.md` — 最低成本 QNN smoke 验证
+- `ort_qnn/README.md` — 桌面 `ORT + QNNExecutionProvider` 验证
+- `docs/manual/android-validation.md` — Android `denoiser-first` 手工验证清单
 
-## Packaging Outputs
+## 仓库结构
 
-The validated desktop ORT/QNN build can now be reused in two forms:
+- `android/` — Android app 与运行时集成
+- `python/` — 导出、参考 pipeline 与 host 辅助逻辑
+- `smoke/` — 最小图 smoke 验证
+- `ort_qnn/` — 桌面 `ORT + QNNExecutionProvider` 验证与打包
+- `docs/project/` — 正式项目文档（人类主入口）
+- `docs/manual/` — 操作型 runbook / checklist
+- `docs/superpowers/` — 设计 spec 与实现 plan 的历史工作痕迹
+- `scripts/` — 主机环境与构建辅助脚本
 
-- **Portable bundle** — lives under `ort_qnn/artifacts/package/portable` and is the most robust reuse path
-- **Local wheel path** — lives under `ort_qnn/artifacts/package/wheels` and supports `pip install` into a Python 3.10 environment
+## 当前主要风险
 
-Recommended order on a fresh machine:
+- 真实 `Anima` 模型导出后可能存在 operator gap
+- Android 端虽然已有本地 execute 路径，但真机 NPU 证据链尚未固化
+- text encoder / VAE 仍未进入 Android runtime loop
 
-1. run `scripts/bootstrap_ubuntu2404.sh`
-2. use the portable bundle first to confirm provider visibility and `toy` / `mini_block`
-3. use the wheel path when you want a cleaner Python install workflow
+## 下一里程碑
 
-## Validation Ladder
+- 推进真实 `Anima` 导出与 operator gap 审查
+- 补齐 Android 真机 / `adb` 验证路径与 profiling 证据闭环
+- 在当前 `denoiser-first` 基础上继续决定是否扩展更多子模型上机
 
-1. Prove ONNX export and CPU runtime correctness on minimal graphs.
-2. Prove QAIRT/QNN conversion, model-lib generation, context generation, and host runtime execution.
-3. Prove desktop Python-callable `ONNX Runtime + QNNExecutionProvider` session and execute paths.
-4. Only after the first three stages are green, move to the real `Anima` denoiser.
+## 说明
 
-## Key Docs
-
-- `smoke/README.md` — smoke test purpose and first-run order.
-- `smoke/docs/smoke-matrix.md` — current smoke validation evidence.
-- `ort_qnn/README.md` — desktop ORT + QNN validation flow.
-- `ort_qnn/docs/ort-qnn-matrix.md` — provider/session/execute result matrix.
-- `docs/superpowers/specs/2026-04-20-ort-qnn-packaging-and-bootstrap-design.md:1`
-- `docs/superpowers/specs/2026-04-20-anima-npu-poc-design.md:1`
-- `docs/superpowers/specs/2026-04-20-qnn-smoke-test-mini-block-design.md:1`
-- `docs/superpowers/specs/2026-04-20-desktop-ort-qnn-validation-design.md:1`
-
-## Host Notes
-
-- QAIRT currently lives under `/opt/qcom/aistack/qairt/2.41.0.251128` on this machine.
-- The QAIRT Python tooling depends on Python 3.10; the local helper environment is under `/opt/qcom/qairt-py310`.
-- `ninja` is installed and the desktop ORT/QNN source build lives under `ort_qnn/artifacts/ort/build/linux_qnn/Release`.
-- Direct `PYTHONPATH` import from that build tree already exposes `QNNExecutionProvider`.
-- A portable bundle and a local wheel path can now be built from that validated release tree.
-
-## Next Milestone
-
-Use the now-validated and now-packageable desktop ORT/QNN path on a stronger host, then move into real `Anima` denoiser export and operator-gap analysis.
+`docs/superpowers/` 中保留了设计与实施过程中的 `spec` / `plan` 文档，它们仍有参考价值，但不再是理解项目现状的主要入口。
