@@ -47,27 +47,63 @@ class DenoiserInputBindingTest {
     }
 
     @Test
-    fun maps_named_inputs_to_runtime_files() {
+    fun binds_unique_4d_float_latent_even_without_latent_in_the_name() {
         val inputs = listOf(
-            OrtJavaNamedTensorInfo("latent", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+            OrtJavaNamedTensorInfo("sample", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
             OrtJavaNamedTensorInfo("timestep", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
-            OrtJavaNamedTensorInfo("cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
-            OrtJavaNamedTensorInfo("uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            OrtJavaNamedTensorInfo("positive_cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            OrtJavaNamedTensorInfo("negative_uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
         )
 
         val binding = bindDenoiserInputs(inputs)
 
-        assertEquals("latent", binding.latent.name)
+        assertEquals("sample", binding.latent.name)
         assertEquals("timestep", binding.timestep.name)
-        assertEquals("cond", binding.cond.name)
-        assertEquals("uncond", binding.uncond.name)
+        assertEquals("positive_cond", binding.cond.name)
+        assertEquals("negative_uncond", binding.uncond.name)
     }
 
     @Test
-    fun rejects_ambiguous_conditioning_pair() {
+    fun rejects_multiple_scalar_like_candidates() {
         val inputs = listOf(
-            OrtJavaNamedTensorInfo("latent", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+            OrtJavaNamedTensorInfo("sample", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
             OrtJavaNamedTensorInfo("timestep", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
+            OrtJavaNamedTensorInfo("sigma", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1))),
+            OrtJavaNamedTensorInfo("positive_cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            OrtJavaNamedTensorInfo("negative_uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+        )
+
+        try {
+            bindDenoiserInputs(inputs)
+            throw AssertionError("Expected DenoiserBindingException")
+        } catch (expected: DenoiserBindingException) {
+            assertEquals(OrtRuntimeFailure.INPUT_MAPPING_FAILED, expected.failure)
+        }
+    }
+
+    @Test
+    fun rejects_multiple_4d_float_candidates() {
+        val inputs = listOf(
+            OrtJavaNamedTensorInfo("sample", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+            OrtJavaNamedTensorInfo("residual", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+            OrtJavaNamedTensorInfo("sigma", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
+            OrtJavaNamedTensorInfo("positive_cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            OrtJavaNamedTensorInfo("negative_uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+        )
+
+        try {
+            bindDenoiserInputs(inputs)
+            throw AssertionError("Expected DenoiserBindingException")
+        } catch (expected: DenoiserBindingException) {
+            assertEquals(OrtRuntimeFailure.INPUT_MAPPING_FAILED, expected.failure)
+        }
+    }
+
+    @Test
+    fun rejects_opaque_conditioning_pair() {
+        val inputs = listOf(
+            OrtJavaNamedTensorInfo("sample", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+            OrtJavaNamedTensorInfo("sigma", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
             OrtJavaNamedTensorInfo("context_a", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
             OrtJavaNamedTensorInfo("context_b", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
         )
