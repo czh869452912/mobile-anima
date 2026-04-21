@@ -1,26 +1,24 @@
 # QNN Smoke Tests
 
-该目录负责以最低成本验证 Qualcomm `QNN/QAIRT` 工具链的可用性，是整个项目验证梯度的最底层。
+This subproject validates Qualcomm compile and runtime feasibility in the cheapest order:
 
-## 在项目中的位置
+1. Toy graph
+2. Mini transformer-like block
+3. Real `Anima` denoiser only after the first two are understood
 
-- 项目总览：`../docs/project/index.md`
-- 项目架构：`../docs/project/architecture.md`
-- 验证体系：`../docs/project/validation.md`
-- 模块状态：`../docs/project/status.md`
+## Preflight Checklist
 
-## 目标
-
-按成本从低到高验证：
-
-1. `toy` graph
-2. `mini_block`
-3. 只有在前两者足够稳定后，才进入真实 `Anima` 子图
+- Qualcomm `QNN/QAIRT SDK` is installed or download access is confirmed
+- `QPM` login / entitlement / license activation completed if required
+- Backend library path is known
+- `ONNX Runtime` with `QNN EP` is available on the host
+- `smoke/docs/smoke-matrix.md` is updated after every run
 
 ## First Manual Run Order
 
 1. Export `toy.onnx`
 2. Run CPU `ORT` on `toy.onnx`
 3. Compile `toy.onnx` with `QNN`
-4. Repeat for `mini_block.onnx`
-5. Update `smoke/docs/smoke-matrix.md`
+4. Run `ORT + QNN EP` on the compiled `toy` artifact
+5. Repeat steps 1-4 for `mini_block.onnx`
+6. Record all outcomes in `smoke/docs/smoke-matrix.md`
