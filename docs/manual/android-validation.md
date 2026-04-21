@@ -22,20 +22,22 @@
    - Steps: `8`
    - CFG: `5.0`
 3. Start generation.
-4. Confirm the app writes an output tensor file to the configured runtime directory.
-5. Confirm the app writes a profiling file to the configured runtime directory.
-6. Confirm the UI reports:
+4. Confirm the app performs one real denoiser execute instead of stopping at session creation.
+5. Confirm the app writes `denoiser_output.raw` to the configured runtime output directory.
+6. Confirm the app writes a profiling file to the configured runtime directory.
+7. If a runtime file is malformed, confirm the UI surfaces an explicit execute-stage failure such as input size mismatch.
+8. Confirm the UI reports:
    - `Session created: true`
    - `QNN active: true`
    - output tensor path
    - profiling path
-7. Confirm the profiling file contains QNN/HTP activity for the denoiser session.
-8. Repeat the run three times.
+9. Confirm the profiling file contains QNN/HTP activity for the denoiser session.
+10. Repeat the run three times.
 
 ## Required Acceptance Evidence
 
 - Screenshot of the completed UI run
-- The output tensor/raw file path shown by the app
+- The `denoiser_output.raw` path shown by the app
 - The profiling CSV or QNN log
 - A note confirming CPU fallback was disabled for the denoiser validation run
 

@@ -22,7 +22,31 @@ private class LegacyProvider(
     override fun toString(): String = text
 }
 
+private class FakeOrtJavaValue(
+    private val bytes: ByteArray,
+) : OrtJavaValue {
+    override fun readRawBytes(): ByteArray = bytes
+    override fun close() = Unit
+}
+
+private class FakeOrtJavaSessionWithMetadata(
+    private val inputs: List<OrtJavaTensorInfo>,
+    private val outputNames: List<String>,
+) : OrtJavaSession {
+    override fun inputInfos(): List<OrtJavaNamedTensorInfo> =
+        inputs.mapIndexed { index, info ->
+            OrtJavaNamedTensorInfo(name = listOf("latent", "timestep", "cond", "uncond")[index], info = info)
+        }
+
+    override fun run(inputs: Map<String, OrtJavaTensorValue>): Map<String, OrtJavaValue> =
+        mapOf(outputNames.first() to FakeOrtJavaValue(byteArrayOf(1, 2, 3, 4)))
+
+    override fun close() = Unit
+}
+
 private class FakeOrtJavaSession : OrtJavaSession {
+    override fun inputInfos(): List<OrtJavaNamedTensorInfo> = emptyList()
+    override fun run(inputs: Map<String, OrtJavaTensorValue>): Map<String, OrtJavaValue> = emptyMap()
     override fun close() = Unit
 }
 
@@ -44,9 +68,51 @@ private class FakeOrtJavaBridge(
             else -> FakeOrtJavaSession()
         }
     }
+
+    override fun tensorFromRaw(info: OrtJavaTensorInfo, rawBytes: ByteArray): OrtJavaTensorValue {
+        throw UnsupportedOperationException("not used in this test")
+    }
 }
 
 class OrtSessionFactoryTest {
+    @Test
+    fun session_exposes_named_input_metadata() {
+        val session = FakeOrtJavaSessionWithMetadata(
+            inputs = listOf(
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 4, 128, 128)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.INT64, shape = longArrayOf(1)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 256, 4096)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 256, 4096)),
+            ),
+            outputNames = listOf("output"),
+        )
+
+        val infos = session.inputInfos()
+
+        assertEquals(4, infos.size)
+        assertEquals("latent", infos[0].name)
+        assertEquals(OrtJavaElementType.FLOAT, infos[0].info.elementType)
+        assertTrue(infos[0].info.shape.contentEquals(longArrayOf(1, 4, 128, 128)))
+    }
+
+    @Test
+    fun session_run_returns_named_outputs() {
+        val session = FakeOrtJavaSessionWithMetadata(
+            inputs = listOf(
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 4, 128, 128)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.INT64, shape = longArrayOf(1)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 256, 4096)),
+                OrtJavaTensorInfo(elementType = OrtJavaElementType.FLOAT, shape = longArrayOf(1, 256, 4096)),
+            ),
+            outputNames = listOf("output"),
+        )
+
+        val outputs = session.run(emptyMap())
+
+        assertEquals(listOf("output"), outputs.keys.toList())
+        assertTrue(outputs.getValue("output").readRawBytes().contentEquals(byteArrayOf(1, 2, 3, 4)))
+    }
+
     @Test
     fun normalize_provider_names_prefers_get_name_when_present() {
         val providers = normalizeProviderNames(
@@ -145,6 +211,6 @@ class OrtSessionFactoryTest {
 
         val execution = result.handle!!.run(File("/tmp/denoiser_output.raw"))
         assertFalse(execution.qnnActive)
-        assertEquals(OrtRuntimeFailure.EXECUTE_NOT_IMPLEMENTED, execution.failureReason)
+        assertEquals(OrtRuntimeFailure.INPUT_METADATA_UNAVAILABLE, execution.failureReason)
     }
 }

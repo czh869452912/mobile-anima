@@ -1,13 +1,14 @@
 package com.example.animanpu.runtime
 
 import java.io.File
+import kotlin.io.path.createTempDirectory
+import kotlin.io.path.pathString
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.io.path.createTempDirectory
 
 private class FakeOrtSessionHandle(
     private val executionResult: OrtSessionExecutionResult,
@@ -30,6 +31,44 @@ private class FakeOrtSessionFactory(
     override fun createDenoiserSession(modelPath: File, config: OrtQnnConfig): OrtSessionCreationResult {
         return creationResult
     }
+}
+
+private class FakeExecuteOrtJavaTensorValue : OrtJavaTensorValue {
+    override fun close() = Unit
+}
+
+private class FakeExecuteOrtJavaValue(
+    private val bytes: ByteArray,
+) : OrtJavaValue {
+    override fun readRawBytes(): ByteArray = bytes
+    override fun close() = Unit
+}
+
+private class FakeExecuteOrtJavaSession(
+    private val inputs: List<OrtJavaNamedTensorInfo>,
+    private val outputs: Map<String, ByteArray>,
+    private val executeFails: Boolean = false,
+) : OrtJavaSession {
+    override fun inputInfos(): List<OrtJavaNamedTensorInfo> = inputs
+
+    override fun run(inputs: Map<String, OrtJavaTensorValue>): Map<String, OrtJavaValue> {
+        if (executeFails) {
+            throw IllegalStateException("execute failed")
+        }
+        return outputs.mapValues { FakeExecuteOrtJavaValue(it.value) }
+    }
+
+    override fun close() = Unit
+}
+
+private class FakeExecuteOrtJavaBridge(
+    private val session: OrtJavaSession,
+) : OrtJavaBridge {
+    override fun availableProviders(): Set<String> = setOf("QNNExecutionProvider")
+
+    override fun createSession(modelPath: File, config: OrtQnnConfig): OrtJavaSession = session
+
+    override fun tensorFromRaw(info: OrtJavaTensorInfo, rawBytes: ByteArray): OrtJavaTensorValue = FakeExecuteOrtJavaTensorValue()
 }
 
 class OrtQnnDenoiserEngineTest {
@@ -158,71 +197,30 @@ class OrtQnnDenoiserEngineTest {
     }
 
     @Test
-    fun returns_execute_not_implemented_when_session_exists_but_execution_is_placeholder() = runTest {
+    fun successful_execute_writes_output_raw_file() = runTest {
         val root = createTempDirectory(prefix = "anima-engine-").toFile()
         val artifacts = ArtifactManager(root)
         artifacts.ensureRuntimeDirectories()
         artifacts.denoiserContextOnnx().writeText("ctx")
         artifacts.denoiserContextBin().writeText("bin")
-        artifacts.latentInput().writeText("latent")
-        artifacts.timestepInput().writeText("time")
-        artifacts.condInput().writeText("cond")
-        artifacts.uncondInput().writeText("uncond")
+        artifacts.latentInput().writeBytes(ByteArray(1 * 4 * 128 * 128 * 4))
+        artifacts.timestepInput().writeBytes(ByteArray(8))
+        artifacts.condInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+        artifacts.uncondInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+
+        val session = FakeExecuteOrtJavaSession(
+            inputs = listOf(
+                OrtJavaNamedTensorInfo("latent", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+                OrtJavaNamedTensorInfo("timestep", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
+                OrtJavaNamedTensorInfo("cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+                OrtJavaNamedTensorInfo("uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            ),
+            outputs = mapOf("output" to byteArrayOf(9, 8, 7, 6)),
+        )
 
         val engine = OrtQnnDenoiserEngine(
             artifactManager = artifacts,
-            sessionFactory = FakeOrtSessionFactory(
-                providerProbe = OrtProviderProbeResult(qnnAvailable = true, failureReason = null),
-                creationResult = OrtSessionCreationResult(
-                    sessionCreated = true,
-                    handle = FakeOrtSessionHandle(
-                        OrtSessionExecutionResult(
-                            qnnActive = false,
-                            failureReason = OrtRuntimeFailure.EXECUTE_NOT_IMPLEMENTED,
-                        ),
-                    ),
-                    failureReason = null,
-                ),
-            ),
-            backendPath = "/data/local/tmp/libQnnHtp.so",
-        )
-
-        val result = engine.generate(
-            GenerationRequest(1024, 1024, "cat astronaut", "blurry", 8, 5.0f),
-        )
-
-        assertTrue(result.sessionCreated)
-        assertFalse(result.qnnActive)
-        assertEquals(OrtRuntimeFailure.EXECUTE_NOT_IMPLEMENTED, result.failureReason)
-    }
-
-    @Test
-    fun returns_success_when_fake_session_executes() = runTest {
-        val root = createTempDirectory(prefix = "anima-engine-").toFile()
-        val artifacts = ArtifactManager(root)
-        artifacts.ensureRuntimeDirectories()
-        artifacts.denoiserContextOnnx().writeText("ctx")
-        artifacts.denoiserContextBin().writeText("bin")
-        artifacts.latentInput().writeText("latent")
-        artifacts.timestepInput().writeText("time")
-        artifacts.condInput().writeText("cond")
-        artifacts.uncondInput().writeText("uncond")
-
-        val engine = OrtQnnDenoiserEngine(
-            artifactManager = artifacts,
-            sessionFactory = FakeOrtSessionFactory(
-                providerProbe = OrtProviderProbeResult(qnnAvailable = true, failureReason = null),
-                creationResult = OrtSessionCreationResult(
-                    sessionCreated = true,
-                    handle = FakeOrtSessionHandle(
-                        OrtSessionExecutionResult(
-                            qnnActive = true,
-                            failureReason = null,
-                        ),
-                    ),
-                    failureReason = null,
-                ),
-            ),
+            sessionFactory = ReflectionOrtSessionFactory(FakeExecuteOrtJavaBridge(session)),
             backendPath = "/data/local/tmp/libQnnHtp.so",
         )
 
@@ -232,8 +230,81 @@ class OrtQnnDenoiserEngineTest {
 
         assertTrue(result.sessionCreated)
         assertTrue(result.qnnActive)
-        assertEquals(artifacts.outputTensor().path, result.outputTensorPath)
-        assertEquals(artifacts.profilingCsv().path, result.profilingPath)
         assertNull(result.failureReason)
+        assertTrue(artifacts.outputTensor().readBytes().contentEquals(byteArrayOf(9, 8, 7, 6)))
+    }
+
+    @Test
+    fun rejects_input_file_size_mismatch_before_execute() = runTest {
+        val root = createTempDirectory(prefix = "anima-engine-").toFile()
+        val artifacts = ArtifactManager(root)
+        artifacts.ensureRuntimeDirectories()
+        artifacts.denoiserContextOnnx().writeText("ctx")
+        artifacts.denoiserContextBin().writeText("bin")
+        artifacts.latentInput().writeBytes(ByteArray(3))
+        artifacts.timestepInput().writeBytes(ByteArray(8))
+        artifacts.condInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+        artifacts.uncondInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+
+        val session = FakeExecuteOrtJavaSession(
+            inputs = listOf(
+                OrtJavaNamedTensorInfo("latent", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+                OrtJavaNamedTensorInfo("timestep", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
+                OrtJavaNamedTensorInfo("cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+                OrtJavaNamedTensorInfo("uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            ),
+            outputs = mapOf("output" to byteArrayOf(1)),
+        )
+
+        val engine = OrtQnnDenoiserEngine(
+            artifactManager = artifacts,
+            sessionFactory = ReflectionOrtSessionFactory(FakeExecuteOrtJavaBridge(session)),
+            backendPath = "/data/local/tmp/libQnnHtp.so",
+        )
+
+        val result = engine.generate(
+            GenerationRequest(1024, 1024, "cat astronaut", "blurry", 8, 5.0f),
+        )
+
+        assertTrue(result.sessionCreated)
+        assertFalse(result.qnnActive)
+        assertEquals(OrtRuntimeFailure.INPUT_FILE_SIZE_MISMATCH, result.failureReason)
+    }
+
+    @Test
+    fun rejects_ambiguous_multiple_outputs() = runTest {
+        val root = createTempDirectory(prefix = "anima-engine-").toFile()
+        val artifacts = ArtifactManager(root)
+        artifacts.ensureRuntimeDirectories()
+        artifacts.denoiserContextOnnx().writeText("ctx")
+        artifacts.denoiserContextBin().writeText("bin")
+        artifacts.latentInput().writeBytes(ByteArray(1 * 4 * 128 * 128 * 4))
+        artifacts.timestepInput().writeBytes(ByteArray(8))
+        artifacts.condInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+        artifacts.uncondInput().writeBytes(ByteArray(1 * 256 * 4096 * 4))
+
+        val session = FakeExecuteOrtJavaSession(
+            inputs = listOf(
+                OrtJavaNamedTensorInfo("latent", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 4, 128, 128))),
+                OrtJavaNamedTensorInfo("timestep", OrtJavaTensorInfo(OrtJavaElementType.INT64, longArrayOf(1))),
+                OrtJavaNamedTensorInfo("cond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+                OrtJavaNamedTensorInfo("uncond", OrtJavaTensorInfo(OrtJavaElementType.FLOAT, longArrayOf(1, 256, 4096))),
+            ),
+            outputs = mapOf("output_a" to byteArrayOf(1), "output_b" to byteArrayOf(2)),
+        )
+
+        val engine = OrtQnnDenoiserEngine(
+            artifactManager = artifacts,
+            sessionFactory = ReflectionOrtSessionFactory(FakeExecuteOrtJavaBridge(session)),
+            backendPath = "/data/local/tmp/libQnnHtp.so",
+        )
+
+        val result = engine.generate(
+            GenerationRequest(1024, 1024, "cat astronaut", "blurry", 8, 5.0f),
+        )
+
+        assertTrue(result.sessionCreated)
+        assertFalse(result.qnnActive)
+        assertEquals(OrtRuntimeFailure.INPUT_MAPPING_FAILED, result.failureReason)
     }
 }
