@@ -2,23 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn the current Android shell into a real denoiser-first local runtime loop that assumes exported `Anima` denoiser artifacts already exist, runs one on-device `ORT + QNN` inference, captures QNN evidence, and surfaces runtime results in the UI.
+**Goal:** Replace the fake Android generation loop with a real denoiser-first local runtime path that assumes exported `Anima` denoiser artifacts already exist, performs one on-device `ORT + QNN` inference, captures profiling evidence, and reports success/failure through the app UI.
 
-**Architecture:** Keep the Android closure split into four layers: UI (`GenerationScreen`, `GenerationViewModel`), orchestration (`GenerationOrchestrator`), runtime (`OrtQnnDenoiserEngine`, `OrtSessionFactory`, `OrtQnnConfig`), and artifact management (`ArtifactManager` plus a small fixed-input asset descriptor). Use fixed/precomputed denoiser inputs first, not full prompt-to-image. The plan must replace the fake `GenerationEngine` in `MainActivity` without pretending text encoder or VAE are complete.
+**Architecture:** Preserve the four-layer split from the approved spec: UI (`GenerationScreen`, `GenerationViewModel`), orchestration (`GenerationOrchestrator`), runtime (`OrtQnnDenoiserEngine`, `OrtSessionFactory`, `OrtQnnConfig`), and artifacts (`ArtifactManager`, fixed-input asset descriptor). To keep the repo buildable without proprietary blobs, use a fakeable session-factory abstraction plus a reflection-based Android implementation. Add the local ORT QNN AAR dependency conditionally so Android unit tests still compile when the AAR is absent.
 
-**Tech Stack:** Kotlin, Android app module, Compose, JUnit4, coroutine test, local `onnxruntime-android-qnn.aar`, Qualcomm `arm64-v8a` runtime `.so` files, Markdown
+**Tech Stack:** Kotlin, Compose, Android Gradle plugin, JUnit4, kotlinx-coroutines-test, reflection-based Android runtime access to `ai.onnxruntime`, Markdown
 
 ---
 
 ## Prerequisites
 
-Before Task 1, verify these assumptions.
+Before Task 1, verify these conditions.
 
-- Android project already builds with the current shell code
-- Android tests currently pass
-- The app still depends on a fake engine in `MainActivity`
-- The denoiser runtime artifacts will be provided externally, not generated in this stage
-- `android/app/libs/README.md` remains the source of truth for required AAR and Qualcomm libraries
+- The Android app currently builds as a shell with a fake engine.
+- Current Android unit tests pass.
+- `android/app/libs/README.md` is still the source of truth for manually supplied ORT/QNN Android artifacts.
+- This stage does not require the real AAR or Qualcomm `.so` files to exist on the development host, but it must produce clear runtime errors if they are absent on-device.
 
 Run:
 
@@ -26,30 +25,29 @@ Run:
 mkdir -p android/app/src/main/assets/runtime android/app/src/test/java/com/example/animanpu/runtime
 ```
 
-Expected: runtime asset directory and Android unit test directory structure are present.
+Expected: runtime asset and test directories exist.
 
 ## File Structure
 
-- Modify: `android/app/build.gradle.kts` — wire the local ORT AAR and asset packaging expectations
-- Modify: `android/app/src/main/java/com/example/animanpu/MainActivity.kt` — replace the fake engine with the real denoiser engine wiring
-- Modify: `android/app/src/main/java/com/example/animanpu/ui/GenerationScreen.kt` — show richer runtime result and failure state
-- Modify: `android/app/src/main/java/com/example/animanpu/ui/GenerationViewModel.kt` — support richer status and engine-driven results
-- Modify: `android/app/src/main/java/com/example/animanpu/runtime/GenerationOrchestrator.kt` — orchestrate real runtime results and failure mapping
-- Modify: `android/app/src/main/java/com/example/animanpu/runtime/GenerationResult.kt` — add output/profiling/provider evidence fields as needed
-- Modify: `android/app/src/main/java/com/example/animanpu/runtime/ArtifactManager.kt` — resolve denoiser assets, profiling output, and output file paths
-- Modify: `android/app/src/main/java/com/example/animanpu/runtime/OrtSessionFactory.kt` — build real ORT session options and create sessions via injectable abstractions
-- Modify: `android/app/src/main/java/com/example/animanpu/runtime/OrtQnnConfig.kt` — keep provider options builder aligned with Android runtime needs
-- Create: `android/app/src/main/java/com/example/animanpu/runtime/DenoiserInputAssetSpec.kt` — fixed/precomputed input asset descriptor
-- Create: `android/app/src/main/java/com/example/animanpu/runtime/OrtQnnDenoiserEngine.kt` — concrete runtime engine for one denoiser inference
-- Modify: `android/app/src/test/java/com/example/animanpu/runtime/GenerationOrchestratorTest.kt`
-- Modify: `android/app/src/test/java/com/example/animanpu/runtime/OrtQnnConfigTest.kt`
+- Modify: `android/app/build.gradle.kts` — conditional local AAR wiring and runtime packaging settings
+- Modify: `android/app/src/main/java/com/example/animanpu/MainActivity.kt` — replace fake engine wiring with the real denoiser engine
+- Modify: `android/app/src/main/java/com/example/animanpu/ui/GenerationScreen.kt` — show richer runtime evidence
+- Modify: `android/app/src/main/java/com/example/animanpu/ui/GenerationViewModel.kt` — propagate richer runtime state
+- Modify: `android/app/src/main/java/com/example/animanpu/runtime/GenerationOrchestrator.kt` — normalize runtime result handling
+- Modify: `android/app/src/main/java/com/example/animanpu/runtime/GenerationResult.kt` — include runtime evidence fields
+- Modify: `android/app/src/main/java/com/example/animanpu/runtime/ArtifactManager.kt` — resolve denoiser assets, profiling output, and output tensor path
+- Modify: `android/app/src/main/java/com/example/animanpu/runtime/OrtSessionFactory.kt` — define fakeable factory/handle interfaces and a reflective Android implementation
+- Modify: `android/app/src/main/java/com/example/animanpu/runtime/OrtQnnConfig.kt` — keep provider options aligned with Android QNN requirements
+- Create: `android/app/src/main/java/com/example/animanpu/runtime/DenoiserInputAssetSpec.kt` — fixed/precomputed input asset names
+- Create: `android/app/src/main/java/com/example/animanpu/runtime/OrtQnnDenoiserEngine.kt` — concrete denoiser runtime engine
 - Create: `android/app/src/test/java/com/example/animanpu/runtime/ArtifactManagerTest.kt`
 - Create: `android/app/src/test/java/com/example/animanpu/runtime/OrtQnnDenoiserEngineTest.kt`
+- Modify: `android/app/src/test/java/com/example/animanpu/runtime/GenerationOrchestratorTest.kt`
 - Optionally create: `android/app/src/test/java/com/example/animanpu/ui/GenerationViewModelTest.kt`
-- Modify: `android/app/libs/README.md` — document required denoiser runtime artifacts and fixed input assets
-- Modify: `docs/manual/android-validation.md` — update manual validation for denoiser-first loop
+- Modify: `android/app/libs/README.md` — document denoiser artifacts and precomputed inputs needed for first run
+- Modify: `docs/manual/android-validation.md` — rewrite validation for the denoiser-first loop
 
-### Task 1: Add artifact/input descriptors and output metadata
+### Task 1: Add denoiser asset descriptors, runtime output metadata, and artifact tests
 
 **Files:**
 - Create: `android/app/src/main/java/com/example/animanpu/runtime/DenoiserInputAssetSpec.kt`
@@ -109,7 +107,7 @@ Expected: FAIL because the new `ArtifactManager` methods do not exist yet.
 
 - [ ] **Step 3: Write the minimal implementation**
 
-Add a small fixed-input descriptor:
+Add a small input descriptor:
 
 ```kotlin
 // android/app/src/main/java/com/example/animanpu/runtime/DenoiserInputAssetSpec.kt
@@ -123,19 +121,16 @@ data class DenoiserInputAssetSpec(
 )
 ```
 
-Expand `ArtifactManager` to resolve:
+Expand `ArtifactManager` to add:
 
-- `denoiserContextOnnx()`
-- `denoiserContextBin()`
 - `latentInput()`
 - `timestepInput()`
 - `condInput()`
 - `uncondInput()`
 - `outputTensor()`
-- `profilingCsv()`
 - `ensureRuntimeDirectories()`
 
-Update `GenerationResult` to carry the minimum runtime evidence:
+Update `GenerationResult` to include Android runtime evidence:
 
 ```kotlin
 data class GenerationResult(
@@ -169,7 +164,7 @@ git add android/app/src/main/java/com/example/animanpu/runtime/DenoiserInputAsse
 git commit -m "test: add android denoiser artifact management"
 ```
 
-### Task 2: Add real ORT session abstractions and QNN runtime engine tests
+### Task 2: Add fakeable ORT/QNN runtime abstractions and denoiser engine tests
 
 **Files:**
 - Modify: `android/app/src/main/java/com/example/animanpu/runtime/OrtSessionFactory.kt`
@@ -183,7 +178,6 @@ git commit -m "test: add android denoiser artifact management"
 // android/app/src/test/java/com/example/animanpu/runtime/OrtQnnDenoiserEngineTest.kt
 package com.example.animanpu.runtime
 
-import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -241,12 +235,6 @@ class OrtQnnDenoiserEngineTest {
 }
 ```
 
-The fake session factory used in the test should model three things:
-
-- provider visibility
-- session creation
-- execute success/failure
-
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run:
@@ -259,7 +247,7 @@ Expected: FAIL because `OrtQnnDenoiserEngine` and fakeable `OrtSessionFactory` c
 
 - [ ] **Step 3: Write the minimal implementation**
 
-Refactor `OrtSessionFactory` into a testable abstraction. For example:
+Refactor `OrtSessionFactory.kt` into abstractions that do not require compile-time ORT classes:
 
 ```kotlin
 interface OrtSessionHandle {
@@ -272,17 +260,20 @@ interface OrtSessionFactory {
 }
 ```
 
-Then add `OrtQnnDenoiserEngine` that:
+Add a real Android implementation that uses reflection against `ai.onnxruntime` so the app module can still compile when the local AAR is absent on the development host.
 
-- checks required artifact files first
+Add `OrtQnnDenoiserEngine` that:
+
+- ensures runtime directories exist
+- checks artifact presence before session creation
 - checks `providerVisible()`
-- builds a config with CPU fallback disabled
+- builds `OrtQnnConfig` with CPU fallback disabled
 - creates a session
-- runs one inference
-- writes the output/profiling file paths into `GenerationResult`
-- classifies failures into explicit error messages
+- runs one inference into `outputTensor()`
+- returns a populated `GenerationResult`
+- throws or classifies a clear runtime error when session creation or execute fails
 
-Do not call real ORT APIs yet in unit tests; keep the engine fakeable.
+Update `OrtQnnConfigTest` if provider option expectations need to include any additional denoiser-loop fields.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -306,7 +297,7 @@ git add android/app/src/main/java/com/example/animanpu/runtime/OrtSessionFactory
 git commit -m "feat: add android ort qnn denoiser engine"
 ```
 
-### Task 3: Wire the real engine into orchestration and UI state
+### Task 3: Wire the real engine into orchestration, view-model, and UI
 
 **Files:**
 - Modify: `android/app/src/main/java/com/example/animanpu/runtime/GenerationOrchestrator.kt`
@@ -316,15 +307,15 @@ git commit -m "feat: add android ort qnn denoiser engine"
 - Modify: `android/app/src/test/java/com/example/animanpu/runtime/GenerationOrchestratorTest.kt`
 - Optional: create `android/app/src/test/java/com/example/animanpu/ui/GenerationViewModelTest.kt`
 
-- [ ] **Step 1: Extend orchestrator tests to assert richer runtime metadata**
+- [ ] **Step 1: Extend orchestrator tests with richer runtime metadata**
 
-Update `GenerationOrchestratorTest.kt` so the expected result includes:
+Update `GenerationOrchestratorTest.kt` to assert:
 
 - `sessionCreated = true`
-- `outputTensorPath`
+- `outputTensorPath` is preserved
 - `qnnActive = true`
 
-Add a failure-path test where the engine throws or returns a non-QNN result and ensure the orchestrator surfaces a meaningful failure.
+Add a failure-path test where the engine raises a meaningful runtime error and confirm the orchestrator does not erase it.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -334,37 +325,36 @@ Run:
 cd android && ./gradlew :app:testDebugUnitTest --tests com.example.animanpu.runtime.GenerationOrchestratorTest
 ```
 
-Expected: FAIL because the orchestrator and result shape have changed.
+Expected: FAIL because the orchestrator/result shape has changed.
 
 - [ ] **Step 3: Write the minimal implementation**
 
 Implementation goals:
 
-- `MainActivity` must stop constructing the fake engine
-- `MainActivity` should construct:
+- `MainActivity` must stop creating the fake engine
+- `MainActivity` should build:
   - `ArtifactManager(filesDir)`
-  - the real `OrtSessionFactory` implementation or a bootstrap-friendly wrapper
+  - the reflection-backed Android `OrtSessionFactory`
   - `OrtQnnDenoiserEngine`
   - `GenerationOrchestrator`
   - `GenerationViewModel`
-- `GenerationViewModel` must preserve prompt fields but drive the real engine path
+- `GenerationViewModel` must keep prompt-related fields but drive the real denoiser loop
 - `GenerationScreen` must display at least:
-  - output tensor path or image path
+  - output tensor path or image/output location
   - total duration
   - denoise duration
   - profiling path
   - `qnnActive`
   - clear runtime error text
 
-Do not overbuild the UI. Keep it minimal and diagnostic.
+Keep the UI intentionally diagnostic and minimal.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run:
 
 ```bash
-cd android && ./gradlew :app:testDebugUnitTest \
-  --tests com.example.animanpu.runtime.GenerationOrchestratorTest
+cd android && ./gradlew :app:testDebugUnitTest --tests com.example.animanpu.runtime.GenerationOrchestratorTest
 ```
 
 Expected: `BUILD SUCCESSFUL`.
@@ -380,26 +370,29 @@ git add android/app/src/main/java/com/example/animanpu/MainActivity.kt \
 git commit -m "feat: wire android denoiser loop into ui"
 ```
 
-### Task 4: Wire Android build inputs and runtime-file expectations
+### Task 4: Wire Android build config and runtime payload expectations
 
 **Files:**
 - Modify: `android/app/build.gradle.kts`
 - Modify: `android/app/libs/README.md`
 - Modify: `docs/manual/android-validation.md`
 
-- [ ] **Step 1: Add the local AAR dependency and document the runtime payload**
+- [ ] **Step 1: Add conditional local AAR wiring and packaging rules**
 
-`android/app/build.gradle.kts` should:
+Update `android/app/build.gradle.kts` to:
 
-- include the local `onnxruntime-android-qnn.aar` from `android/app/libs/`
-- include any packaging rules needed so the Qualcomm `.so` files are not stripped or excluded
-- remain conservative and avoid introducing unrelated Android dependencies
+- include the local `onnxruntime-android-qnn.aar` **only if the file exists**
+- keep the module buildable without proprietary artifacts on the host
+- set conservative JNI packaging options so Qualcomm `.so` files are preserved when present
 
-Minimal example shape:
+Recommended pattern:
 
 ```kotlin
-dependencies {
-    implementation(files("libs/onnxruntime-android-qnn.aar"))
+val qnnAar = file("libs/onnxruntime-android-qnn.aar")
+if (qnnAar.exists()) {
+    dependencies {
+        implementation(files(qnnAar))
+    }
 }
 
 android {
@@ -411,22 +404,24 @@ android {
 }
 ```
 
-- [ ] **Step 2: Update documentation for denoiser-only closure**
+If Gradle syntax requires moving the conditional differently, keep the intent the same.
 
-`android/app/libs/README.md` must now list the complete first-loop payload, including:
+- [ ] **Step 2: Update runtime payload docs**
+
+`android/app/libs/README.md` must list the first-loop payload clearly:
 
 - custom ORT AAR
 - Qualcomm runtime `.so` files
 - denoiser context/model artifacts
-- precomputed input assets
+- fixed/precomputed denoiser input assets
 
 `docs/manual/android-validation.md` must be rewritten for the denoiser-first loop:
 
-- install app
-- confirm assets are present
-- tap Generate
-- confirm output tensor and profiling file appear
-- confirm `qnnActive` evidence and no CPU fallback
+- install the app
+- ensure runtime assets are present
+- tap Generate once
+- confirm output tensor/output artifact and profiling file
+- confirm QNN evidence and disabled CPU fallback
 
 - [ ] **Step 3: Run Android unit tests again**
 
@@ -474,14 +469,14 @@ Expected: no uncommitted changes remain.
 
 The final implementation handoff must include:
 
-- which Android artifacts the user must provide manually
+- which Android artifacts must be provided manually
 - where to place them
 - how to run the app
 - what evidence proves success
-- what the remaining gap is before full text-to-image
+- what gap still remains before full text-to-image
 
 ## Self-Review
 
-- Spec coverage checked: the plan covers the real denoiser engine, runtime artifact management, Android ORT/QNN session creation, UI closure, and device validation evidence.
+- Spec coverage checked: the plan covers the real denoiser engine, artifact management, fakeable Android ORT/QNN session creation, UI closure, and updated device validation.
 - Placeholder scan checked: no unresolved placeholders or vague future tasks remain.
 - Type consistency checked: `GenerationResult`, `ArtifactManager`, `OrtSessionFactory`, and `OrtQnnDenoiserEngine` responsibilities are aligned across tasks and tests.
