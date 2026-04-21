@@ -56,8 +56,11 @@ fun GenerationScreen(
         }
         state.lastResult?.let {
             Text("Last image: ${it.imagePath}")
+            Text("Output tensor: ${it.outputTensorPath}")
             Text("Total: ${it.totalDurationMs} ms")
             Text("Denoise: ${it.denoiseDurationMs} ms")
+            Text("Session created: ${it.sessionCreated}")
+            Text("Profile: ${it.profilingPath}")
             Text("QNN active: ${it.qnnActive}")
         }
         state.error?.let { Text("Error: $it") }

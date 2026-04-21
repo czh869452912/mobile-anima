@@ -61,7 +61,11 @@ class GenerationViewModel(
         viewModelScope.launch {
             runCatching { orchestrator.generate(request) }
                 .onSuccess { result ->
-                    _state.value = _state.value.copy(isGenerating = false, lastResult = result)
+                    _state.value = _state.value.copy(
+                        isGenerating = false,
+                        lastResult = result,
+                        error = null,
+                    )
                 }
                 .onFailure { error ->
                     _state.value = _state.value.copy(isGenerating = false, error = error.message)
