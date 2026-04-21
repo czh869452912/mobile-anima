@@ -2,31 +2,83 @@ package com.example.animanpu.runtime
 
 import java.io.File
 
+data class OrtProviderProbeResult(
+    val qnnAvailable: Boolean,
+    val failureReason: OrtRuntimeFailure? = null,
+)
+
+data class OrtSessionExecutionResult(
+    val qnnActive: Boolean,
+    val failureReason: OrtRuntimeFailure? = null,
+)
+
+data class OrtSessionCreationResult(
+    val sessionCreated: Boolean,
+    val handle: OrtSessionHandle? = null,
+    val failureReason: OrtRuntimeFailure? = null,
+)
+
 interface OrtSessionHandle {
-    fun run(outputPath: File): Boolean
+    fun run(outputPath: File): OrtSessionExecutionResult
 }
 
 interface OrtSessionFactory {
-    fun providerVisible(): Boolean
-    fun createDenoiserSession(modelPath: File, config: OrtQnnConfig): OrtSessionHandle
+    fun probeQnnProvider(): OrtProviderProbeResult
+    fun providerVisible(): Boolean = probeQnnProvider().qnnAvailable
+    fun createDenoiserSession(modelPath: File, config: OrtQnnConfig): OrtSessionCreationResult
 }
 
-class ReflectionOrtSessionFactory : OrtSessionFactory {
-    override fun providerVisible(): Boolean {
-        return runCatching {
-            val environmentClass = Class.forName("ai.onnxruntime.OrtEnvironment")
-            val environment = environmentClass.getMethod("getEnvironment").invoke(null)
-            val providers = environmentClass.getMethod("getAvailableProviders").invoke(environment) as List<*>
-            providers.any { it?.toString() == "QNNExecutionProvider" }
-        }.getOrDefault(false)
+class ReflectionOrtSessionFactory(
+    private val bridge: OrtJavaBridge = ReflectionOrtJavaBridge(),
+) : OrtSessionFactory {
+    override fun probeQnnProvider(): OrtProviderProbeResult {
+        return try {
+            val providers = bridge.availableProviders()
+            if (providers.contains("QNNExecutionProvider")) {
+                OrtProviderProbeResult(qnnAvailable = true, failureReason = null)
+            } else {
+                OrtProviderProbeResult(
+                    qnnAvailable = false,
+                    failureReason = OrtRuntimeFailure.QNN_PROVIDER_UNAVAILABLE,
+                )
+            }
+        } catch (_: OrtJavaApiUnavailableException) {
+            OrtProviderProbeResult(
+                qnnAvailable = false,
+                failureReason = OrtRuntimeFailure.ORT_API_UNAVAILABLE,
+            )
+        }
     }
 
-    override fun createDenoiserSession(modelPath: File, config: OrtQnnConfig): OrtSessionHandle {
-        return object : OrtSessionHandle {
-            override fun run(outputPath: File): Boolean {
-                outputPath.parentFile?.mkdirs()
-                return false
-            }
+    override fun createDenoiserSession(modelPath: File, config: OrtQnnConfig): OrtSessionCreationResult {
+        return try {
+            val session = bridge.createSession(modelPath, config)
+            OrtSessionCreationResult(
+                sessionCreated = true,
+                handle = object : OrtSessionHandle {
+                    override fun run(outputPath: File): OrtSessionExecutionResult {
+                        outputPath.parentFile?.mkdirs()
+                        session.close()
+                        return OrtSessionExecutionResult(
+                            qnnActive = false,
+                            failureReason = OrtRuntimeFailure.EXECUTE_NOT_IMPLEMENTED,
+                        )
+                    }
+                },
+                failureReason = null,
+            )
+        } catch (_: OrtJavaApiUnavailableException) {
+            OrtSessionCreationResult(
+                sessionCreated = false,
+                handle = null,
+                failureReason = OrtRuntimeFailure.ORT_API_UNAVAILABLE,
+            )
+        } catch (_: OrtJavaSessionCreateException) {
+            OrtSessionCreationResult(
+                sessionCreated = false,
+                handle = null,
+                failureReason = OrtRuntimeFailure.SESSION_CREATE_FAILED,
+            )
         }
     }
 }

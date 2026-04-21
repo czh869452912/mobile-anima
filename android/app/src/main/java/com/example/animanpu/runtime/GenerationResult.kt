@@ -8,4 +8,5 @@ data class GenerationResult(
     val qnnActive: Boolean,
     val sessionCreated: Boolean = false,
     val outputTensorPath: String = "",
+    val failureReason: OrtRuntimeFailure? = null,
 )

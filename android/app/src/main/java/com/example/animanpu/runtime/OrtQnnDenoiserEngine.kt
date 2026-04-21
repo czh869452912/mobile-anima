@@ -29,10 +29,12 @@ class OrtQnnDenoiserEngine(
                 qnnActive = false,
                 sessionCreated = false,
                 outputTensorPath = artifactManager.outputTensor().path,
+                failureReason = OrtRuntimeFailure.MISSING_RUNTIME_ARTIFACT,
             )
         }
 
-        if (!sessionFactory.providerVisible()) {
+        val probe = sessionFactory.probeQnnProvider()
+        if (!probe.qnnAvailable) {
             return@withContext GenerationResult(
                 imagePath = "",
                 totalDurationMs = 0,
@@ -41,6 +43,7 @@ class OrtQnnDenoiserEngine(
                 qnnActive = false,
                 sessionCreated = false,
                 outputTensorPath = artifactManager.outputTensor().path,
+                failureReason = probe.failureReason,
             )
         }
 
@@ -50,9 +53,22 @@ class OrtQnnDenoiserEngine(
             profilingLevel = "detailed",
             disableCpuFallback = true,
         )
-        val session = sessionFactory.createDenoiserSession(artifactManager.denoiserContextOnnx(), config)
+        val creation = sessionFactory.createDenoiserSession(artifactManager.denoiserContextOnnx(), config)
+        if (!creation.sessionCreated || creation.handle == null) {
+            return@withContext GenerationResult(
+                imagePath = "",
+                totalDurationMs = 0,
+                denoiseDurationMs = 0,
+                profilingPath = artifactManager.profilingCsv().path,
+                qnnActive = false,
+                sessionCreated = false,
+                outputTensorPath = artifactManager.outputTensor().path,
+                failureReason = creation.failureReason,
+            )
+        }
+
         val startedAt = System.currentTimeMillis()
-        val executed = session.run(artifactManager.outputTensor())
+        val executed = creation.handle.run(artifactManager.outputTensor())
         val endedAt = System.currentTimeMillis()
 
         GenerationResult(
@@ -60,9 +76,10 @@ class OrtQnnDenoiserEngine(
             totalDurationMs = endedAt - startedAt,
             denoiseDurationMs = endedAt - startedAt,
             profilingPath = artifactManager.profilingCsv().path,
-            qnnActive = executed,
+            qnnActive = executed.qnnActive,
             sessionCreated = true,
             outputTensorPath = artifactManager.outputTensor().path,
+            failureReason = executed.failureReason,
         )
     }
 }

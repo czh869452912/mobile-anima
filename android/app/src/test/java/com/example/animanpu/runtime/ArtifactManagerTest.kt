@@ -4,11 +4,12 @@ import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.io.path.createTempDirectory
 
 class ArtifactManagerTest {
     @Test
     fun resolves_denoiser_runtime_inputs_and_outputs_under_runtime_directory() {
-        val root = createTempDir(prefix = "anima-runtime-")
+        val root = createTempDirectory(prefix = "anima-runtime-").toFile()
         val manager = ArtifactManager(root)
 
         assertEquals(File(root, "runtime/denoiser_ctx.onnx"), manager.denoiserContextOnnx())
@@ -23,7 +24,7 @@ class ArtifactManagerTest {
 
     @Test
     fun ensures_runtime_parent_directories_exist() {
-        val root = createTempDir(prefix = "anima-runtime-")
+        val root = createTempDirectory(prefix = "anima-runtime-").toFile()
         val manager = ArtifactManager(root)
 
         manager.ensureRuntimeDirectories()

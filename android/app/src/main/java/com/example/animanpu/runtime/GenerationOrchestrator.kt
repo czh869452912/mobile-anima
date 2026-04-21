@@ -6,7 +6,8 @@ class GenerationOrchestrator(
     suspend fun generate(request: GenerationRequest): GenerationResult {
         val result = engine.generate(request)
         if (!result.sessionCreated || !result.qnnActive) {
-            throw IllegalStateException("Denoiser runtime did not activate QNN")
+            val detail = result.failureReason?.code ?: "unknown_runtime_failure"
+            throw IllegalStateException("Denoiser runtime did not activate QNN ($detail)")
         }
         return result
     }

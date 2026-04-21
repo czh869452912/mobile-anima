@@ -15,6 +15,7 @@ class GenerationOrchestratorTest {
             qnnActive = true,
             sessionCreated = true,
             outputTensorPath = "/tmp/output.raw",
+            failureReason = null,
         )
         val engine = object : GenerationEngine {
             override suspend fun generate(request: GenerationRequest): GenerationResult = expected
@@ -36,7 +37,7 @@ class GenerationOrchestratorTest {
     }
 
     @Test
-    fun rejects_result_when_qnn_is_not_active() = runTest {
+    fun rejects_result_when_qnn_is_not_active_and_includes_failure_code() = runTest {
         val engine = object : GenerationEngine {
             override suspend fun generate(request: GenerationRequest): GenerationResult {
                 return GenerationResult(
@@ -47,6 +48,7 @@ class GenerationOrchestratorTest {
                     qnnActive = false,
                     sessionCreated = false,
                     outputTensorPath = "/tmp/output.raw",
+                    failureReason = OrtRuntimeFailure.QNN_PROVIDER_UNAVAILABLE,
                 )
             }
         }
@@ -65,7 +67,10 @@ class GenerationOrchestratorTest {
             )
             throw AssertionError("Expected IllegalStateException")
         } catch (expected: IllegalStateException) {
-            assertEquals("Denoiser runtime did not activate QNN", expected.message)
+            assertEquals(
+                "Denoiser runtime did not activate QNN (qnn_provider_unavailable)",
+                expected.message,
+            )
         }
     }
 }
